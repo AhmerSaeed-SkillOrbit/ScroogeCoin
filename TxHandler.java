@@ -1,4 +1,10 @@
+import java.util.ArrayList;
+
+import Transaction.Output;
+
 public class TxHandler {
+    
+    private UTXOPool utxoPool;
 
     /**
      * Creates a public ledger whose current UTXOPool (collection of unspent transaction outputs) is
@@ -6,7 +12,7 @@ public class TxHandler {
      * constructor.
      */
     public TxHandler(UTXOPool utxoPool) {
-        // IMPLEMENT THIS
+        this.utxoPool = new UTXOPool(utxoPool);
     }
 
     /**
@@ -19,7 +25,16 @@ public class TxHandler {
      *     values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
-        // IMPLEMENT THIS
+        ArrayList<Transaction.Output> outputs = tx.getOutputs();
+        ArrayList<Transaction.Input> inputs = tx.getInputs();
+        
+        for (Transaction.Output output : outputs) {
+            if (output.value < 0) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     /**
