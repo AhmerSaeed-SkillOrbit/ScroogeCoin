@@ -1,8 +1,8 @@
 import java.util.ArrayList;
 import java.util.HashSet;
 
-public class TxHandler {
-    
+public class MaxFeeTxHandler {
+
     private UTXOPool utxoPool;
 
     /**
@@ -10,7 +10,7 @@ public class TxHandler {
      * {@code utxoPool}. This should make a copy of utxoPool by using the UTXOPool(UTXOPool uPool)
      * constructor.
      */
-    public TxHandler(UTXOPool utxoPool) {
+    public MaxFeeTxHandler(UTXOPool utxoPool) {
         this.utxoPool = new UTXOPool(utxoPool);
     }
 
@@ -62,6 +62,66 @@ public class TxHandler {
         
         return inputValueSum >= outputValueSum;
     }
+    
+    private class HandleResult {
+    		public Transaction[] txs = new Transaction[0];
+    		public double fees = 0;
+    }
+    
+    private void processValidTx(Transaction tx) {
+    		ArrayList<Transaction.Output> txOutputs = tx.getOutputs();
+		for (int i = 0 ; i < txOutputs.size(); i++) {
+			UTXO outputUtxo = new UTXO(tx.getHash(), i);
+			utxoPool.addUTXO(outputUtxo, txOutputs.get(i));
+		}
+		
+		ArrayList<Transaction.Input> txInputs = tx.getInputs();
+		for (int i = 0 ; i < txInputs.size(); i++) {
+			Transaction.Input input = txInputs.get(i);
+    			UTXO prevUtxo = new UTXO(input.prevTxHash, input.outputIndex);
+    			utxoPool.removeUTXO(prevUtxo);
+		}
+    }
+    
+    private double getInputValueSum (ArrayList<Transaction.Input> inputs) {
+    		double inputValueSum = 0;
+        for (int i = 0; i < inputs.size(); i++) {
+	    		Transaction.Input input = inputs.get(i);
+	    		UTXO prevUtxo = new UTXO(input.prevTxHash, input.outputIndex);
+	    		Transaction.Output claimedOutput = utxoPool.getTxOutput(prevUtxo);
+	    		inputValueSum += claimedOutput.value;
+	    }
+        return inputValueSum;
+    }
+    
+    private double getOutputValueSum (ArrayList<Transaction.Output> outputs) {
+    		double outputValueSum = 0;
+        for (int i = 0; i < outputs.size(); i++) {
+	    		Transaction.Output output = outputs.get(i);
+	    		outputValueSum += output.value;
+	    }
+        return outputValueSum;
+    }
+    
+    private HandleResult handleWithMaxFee(Transaction[] possibleTxs, int start, int end) {
+    		HandleResult handleResult = new HandleResult();
+    		if (start > end) {
+    			return handleResult;
+    		}
+    		
+    		if (start == end) {
+    			Transaction tx = possibleTxs[start];
+    			if (!isValidTx(tx)) {
+    				return handleResult;
+    			}
+    			
+    			processValidTx(tx);
+    			handleResult.txs = new Transaction[1];
+    			handleResult.txs[0] = tx;
+    			handleResult.fees = getInputValueSum(tx.getInputs()) - getOutputValueSum(tx.getOutputs());
+    			return handleResult;
+    		}
+    }
 
     /**
      * Handles each epoch by receiving an unordered array of proposed transactions, checking each
@@ -74,24 +134,11 @@ public class TxHandler {
         		if (!isValidTx(tx)) {
         			continue;
         		}
-        		
-        		ArrayList<Transaction.Output> txOutputs = tx.getOutputs();
-        		for (int i = 0 ; i < txOutputs.size(); i++) {
-        			UTXO outputUtxo = new UTXO(tx.getHash(), i);
-        			utxoPool.addUTXO(outputUtxo, txOutputs.get(i));
-        		}
-        		
-        		ArrayList<Transaction.Input> txInputs = tx.getInputs();
-        		for (int i = 0 ; i < txInputs.size(); i++) {
-        			Transaction.Input input = txInputs.get(i);
-            		UTXO prevUtxo = new UTXO(input.prevTxHash, input.outputIndex);
-            		utxoPool.removeUTXO(prevUtxo);
-        		}
-        		
+
+        		processValidTx(tx);
         		validTxs.add(tx);
         }
         
         return validTxs.toArray(new Transaction[validTxs.size()]);
     }
-
 }
